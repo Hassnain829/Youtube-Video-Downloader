@@ -1,45 +1,46 @@
-from pytube import YouTube
+import yt_dlp
 
-def download_youtube_video(url):
+def list_and_download_video(url):
     try:
-        # Create YouTube object
-        if not url.startswith("https://www.youtube.com/") and not url.startswith("https://youtu.be/"):
-            raise ValueError("Invalid YouTube URL. Please provide a valid URL.")
-        yt = YouTube(url)
+        # List formats
+        ydl_opts_list = {
+            'listformats': True,
+            'quiet': True,
+        }
 
-        # Display video title
-        print(f"Title: {yt.title}")
+        print("\nFetching available formats...\n")
 
-        # List all available streams
-        print("\nAvailable streams:")
-        streams = yt.streams.filter(progressive=True, file_extension="mp4")
-        if not streams:
-            print("No available streams found. Please try a different video.")
+        with yt_dlp.YoutubeDL(ydl_opts_list) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            formats = info_dict.get('formats', [])
+            filtered_formats = [f for f in formats if f.get('vcodec') != 'none' and f.get('acodec') != 'none']
+
+            for i, fmt in enumerate(filtered_formats, start=1):
+                size = fmt.get('filesize', 0)
+                print(f"{i}. {fmt['format']} - {round(size / (1024 * 1024), 2) if size else 'Unknown'} MB")
+
+        choice = int(input("\nEnter the number of the format to download: "))
+        if choice < 1 or choice > len(filtered_formats):
+            print("Invalid selection.")
             return
 
-        for i, stream in enumerate(streams, start=1):
-            print(f"{i}. Resolution: {stream.resolution}, FPS: {stream.fps}, File Size: {round(stream.filesize / (1024 * 1024), 2)} MB")
+        selected_format_id = filtered_formats[choice - 1]['format_id']
 
-        # Ask user to select a stream
-        choice = int(input("\nEnter the number of the stream to download: "))
-        if choice < 1 or choice > len(streams):
-            print("Invalid choice. Please restart the program and select a valid stream.")
-            return
-        selected_stream = streams[choice - 1]
+        # Download
+        ydl_opts_download = {
+            'format': selected_format_id,
+            'outtmpl': '%(title)s.%(ext)s',
+        }
 
-        # Download the selected stream
-        print("\nDownloading...")   
-        selected_stream.download()
-        print("Download completed!")
+        print("\nDownloading...")
+        with yt_dlp.YoutubeDL(ydl_opts_download) as ydl:
+            ydl.download([url])
+
+        print("\nDownload completed successfully!")
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    video_url = input("Enter the YouTube video URL: ")
-    try:
-        download_youtube_video(video_url)
-    except ValueError as ve:
-        print(f"Input error: {ve}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    video_url = input("Enter YouTube video URL: ")
+    list_and_download_video(video_url)
